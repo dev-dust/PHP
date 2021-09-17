@@ -1,76 +1,617 @@
-------------------------------------------------------------------------------------------------------------------------------------
-DatabaseConfig.php
-------------------------------------------------------------------------------------------------------------------------------------
 <?php
+echo 'success'; 
+//********************************Database Connection*********************************************\\
+//TODO Connect to mysql database
+define('HOST', 'localhost'); //host
+define('USER', 'root'); //username
+define('PASS', ''); //password
+define('DB', 'sl37'); //Database name
+$con = mysqli_connect(HOST, USER, PASS, DB) or die('Unable to Connect');
+//----------------------------------------------------------------------------------------------------
+//TODO Close database connection
+mysqli_close($con);
+//________________________________Database Connection_____________________________________________\\
 
-define('DB_SERVER', '');//Database Host Name
-define('DB_USERNAME', '');//Database Username
-define('DB_PASSWORD', '');//Database Password
-define('DB_NAME', '');//Database Name
- 
-/* Attempt to connect to MySQL database */
-$connection = mysqli_connect(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
- 
-// Check connection
-if($connection === false){
-    die("ERROR: Could not connect. " . mysqli_connect_error());
-}
-?>
+//TODO check request method (default method is GET
+if ($_SERVER['REQUEST_METHOD'] == 'POST'){}
 
-************************************************************************************************************************************
+//TODO receive parameters via get method
+$key = $_GET['key']; //where key passed from clint side
 
+//TODO receive parameters via post method
+$key = $_POST['key']; //where key passed from clint side
 
-------------------------------------------------------------------------------------------------------------------------------------
-Select.php
-------------------------------------------------------------------------------------------------------------------------------------
-<?php
+//TODO receive parameters via body
+$json = file_get_contents('php://input');
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST')
+//******************************Simple Insert*****************************************************\\
+$id = $_POST['id'];
+$name = $_POST['name'];
+$address = $_POST['address'];
+$sql = "INSERT INTO table_name (id,name,address) VALUES('$id','$name','$address')";
+if (mysqli_query($connection, $sql))
 {
-// Include config file
-require_once "DatabaseConfig.php";
+echo 'Success';
+}
+else
+{
+echo 'failure';
+//echo $connection->error; //TODO for getting query  error
+}
+//________________________________________________________________________________________________
 
-    $phone = $_POST['phone'];
-    
-    $sql = "SELECT * FROM cj_advertiser WHERE phone_number = '$phone' LIMIT 1";
+//******************************Simple Update*****************************************************\\
+$id = $_POST['id'];
+$name = $_POST['name'];
+$address = $_POST['address'];
+$sql = "UPDATE table_name SET  name = '$name', address = '$address' WHERE id = $id";
+if (mysqli_query($connection, $sql))
+{
+echo 'success';
+}
+else
+{
+echo 'failure';
+//echo $connection->error; //TODO for getting query  error
+}
+//_____________________________________Simple Update________________________________________________
+
+//******************************Simple Delete*****************************************************\\
+
+$id = $_POST['id'];
+$table_name = $_POST['table_name'];
+$sql = "DELETE FROM $table_name WHERE id = $id";
+if (mysqli_query($connection, $sql))
+{
+echo 'success';
+}
+else
+{
+echo 'failed';
+//echo $connection->error; //TODO for getting query  error
+}
+//_____________________________________Simple Delete________________________________________________
+
+//******************************Simple Select Single Row******************************************\\
+$id = $_POST['id'];
+$table_name = $_POST['table_name'];
+$sql = "SELECT * FROM $table_name WHERE id = '$id'";
+$query = mysqli_query($connection, $sql);
+$row = mysqli_fetch_assoc($query);
+echo json_encode($row);
+//__________________________________________________________________________________________________
+
+//******************************Simple Select Multiple Rows***************************************\\
+$table_name = $_POST['table_name'];
+$sql = "SELECT * FROM $table_name WHERE 1";
+$query = mysqli_query($connection, $sql);
+$result = array();
+while ($row = mysqli_fetch_assoc($r))
+{
+array_push($result, $row);
+}
+echo json_encode($result);
+
+//__________________________________________________________________________________________________
+//__________________________________________________________________________________________________
+//__________________________________________________________________________________________________
+//__________________________________________________________________________________________________
+
+Api.java
+import java.util.List;
+
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import retrofit2.Call;
+import retrofit2.http.Body;
+import retrofit2.http.Field;
+import retrofit2.http.FormUrlEncoded;
+import retrofit2.http.Headers;
+import retrofit2.http.Multipart;
+import retrofit2.http.POST;
+import retrofit2.http.Part;
+import retrofit2.http.Query;
+
+public interface Api {
+
+    @FormUrlEncoded
+    @POST("final/Read.php")
+    Call<String> read(@Field("table_name") String tableName, @Field("primary_key_value") String id);
+
+    @FormUrlEncoded
+    @POST("final/ReadAll.php")
+    Call<String> readAll(@Field("table_name") String tableName);
+
+    @POST("final/Post.php")
+    @Headers({"Content-Type: application/json;charset=UTF-8"})
+    Call<String> post(@Query("table_name") String tableName, @Body Object data);
+
+    @POST("final/Post.php")
+    @Headers({"Content-Type: application/json;charset=UTF-8"})
+    Call<String> post(@Query("table_name") String tableName, @Body Object data, @Query("select") boolean select);
+
+    @POST("final/Put.php")
+    @Headers({"Content-Type: application/json;charset=UTF-8"})
+    Call<String> put(@Query("table_name") String tableName, @Body Object data);
+
+    @FormUrlEncoded
+    @POST("final/Remove.php")
+    Call<String> remove(@Field("table_name") String tableName, @Field("primary_key_value") String id);
+
+    @Multipart
+    @POST("final/MultiPart.php")
+    Call<String> upload(@Part MultipartBody.Part file, @Part("file_name") RequestBody fileName);
+
+}
+
+//__________________________________________________________________________________________________
+
+
+
+ApiConfig.php
+<?php
+
+//Database Configurations
+define('DATABASE_HOST', 'localhost');
+
+define('DATABASE_USERNAME', 'root');
+
+define('DATABASE_PASSWORD', '');
+
+define('DATABASE_NAME', 'retrofit');
+
+//Directory Path for save uploaded files
+define('UPLOAD_PATH', '/uploads/');
+
+//__________________________________________________________________________________________________
+
+
+MultiPart.php
+<?php
+require_once dirname(__FILE__) . '/MultiPartParser.php';
+
+$response = array();
+$dArray = array();
+$response['json_data'] = "";
+$response['is_successful'] = false;
+$response['error_message'] = '';
+
+if ($_FILES['file']['error'] === UPLOAD_ERR_OK)
+{
+    $upload = new MultiPartParser();
+
+    $file = $_FILES['file']['tmp_name'];
+    $extension = $upload->getFileExtension($_FILES['file']['name']);
+
+    $name = "File";
+    if (isset($_POST['file_name']) && strlen($_POST['file_name']) > 0)
+    {
+        $name = $_POST['file_name'];
+    }
+    else
+    {
+        $name = $upload->getFileName($extension);
+    }
+
+    if ($upload->saveFile($file, $name, $extension))
+    {
+        $response['is_successful'] = true;
+        $response['message'] = 'File Uploaded Successfully';
+        $dArray['file_name'] = $name . '.' . $extension;
+        $dArray['name'] = $name;
+        $dArray['extension'] = $extension;
+        $dArray['url'] = $upload->getUploadsUrl() . $name . '.' . $extension;
+        $response['json_data'] = json_encode($dArray);
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = 'Failed  To Save File';
+        $response['error_message'] = 'Failed  To Save File';
+
+    }
+
+}
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = 'File Upload Error';
+    $response['error_message'] = 'File Upload Error';
+
+}
+
+echo json_encode($response);
+
+//__________________________________________________________________________________________________
+
+MultiPartParser.php
+<?php
+
+class MultiPartParser
+{
+
+    public function __construct()
+    {
+        require_once dirname(__FILE__) . '/ApiConfig.php';
+
+    }
+
+    public function saveFile($file, $name, $extension)
+    {
+        $fileName = $name . '.' . $extension;
+        $destination = dirname(__FILE__) . UPLOAD_PATH . $fileName;
+        return move_uploaded_file($file, $destination);
+
+    }
+
+    public function getFileExtension($file)
+    {
+        $path_parts = pathinfo($file);
+        return $path_parts['extension'];
+    }
+
+    public function getFileName($ext)
+    {
+
+        $fileName = "";
+        if ($ext == "jpeg" || $ext == "jpg" || $ext == "png" || $ext == "gif")
+        {
+            $fileName = "IMG_";
+        }
+        elseif ($ext == "txt" || $ext == "pdf" || $ext == "ppt" || $ext == "doc" || $ext == "docx" || $ext == "xls" || $ext == "xlsx")
+        {
+            $fileName = "DOC_";
+        }
+        else
+        {
+            $fileName = "FILE_";
+        }
+        return $fileName . date('dmy_hi');
+
+    }
+
+    function getCurrentUrl()
+    {
+
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') $url = "https://";
+        else $url = "http://";
+
+        $url .= $_SERVER['HTTP_HOST'];
+
+        $url .= dirname($_SERVER['PHP_SELF']);
+
+        return $url;
+
+    }
+
+    public function getUploadsUrl()
+    {
+
+        return $this->getCurrentUrl() . UPLOAD_PATH;
+
+    }
+
+}
+
+//__________________________________________________________________________________________________
+
+Post.php
+<?php
+include 'ApiConfig.php';
+
+$response = array();
+$response['insert_id'] = "-1";
+$response['error_message'] = "";
+$response['json_data'] = "";
+
+$connection = @new mysqli(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_NAME);
+
+if ($connection->connect_error)
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Connection error";
+    $response['error_message'] = $connection->connect_error;
+    echo json_encode($response);
+    exit();
+}
+
+if (isset($_GET["table_name"]))
+{
+    $table_name = $_GET["table_name"];
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
+
+    $columns = array_keys($data);
+    $values = array_values($data);
+    $sql = "INSERT INTO $table_name (" . implode(", ", $columns) . ") VALUES ('" . implode("', '", $values) . "')";
     $query = mysqli_query($connection, $sql);
     if ($query)
-	{
-	    $check = mysqli_fetch_array($query);
-	    if (isset($check))
-		{
-		    mysqli_data_seek($query, 0); // TODO resets the cursor to the first row
-		    $row = mysqli_fetch_assoc($query);
-		    echo json_encode($row);
-		}
-		else
-		{
-			echo "No record found";
-		}
-	}
-	else
-	{
-		echo mysqli_error($connection);
-	}
+    {
+
+        $response['is_successful'] = true;
+        $response['message'] = "Saved Successfully";
+        $iid = mysqli_insert_id($connection);
+        $response['insert_id'] = $iid;
+
+        if (isset($_GET["select"]))
+        {
+            $pri_sql = "SHOW KEYS FROM $table_name WHERE Key_name = 'PRIMARY'";
+            $pri_query = mysqli_query($connection, $pri_sql);
+            $pri_row = mysqli_fetch_assoc($pri_query);
+            $primary_key = $pri_row["Column_name"];
+            $ssql = "SELECT * FROM $table_name WHERE $primary_key = $iid LIMIT 1";
+            $squery = mysqli_query($connection, $ssql);
+            if ($squery)
+            {
+                $srow = mysqli_fetch_assoc($squery);
+                $response['json_data'] = json_encode($srow);
+            }
+        }
+
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = "Failed to save Please try again later";
+        $response['error_message'] = $connection->error;
+    }
 }
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Table name not found";
+    $response['error_message'] = "You are not passing parameter table_name";
+}
+
+echo json_encode($response);
+
+mysqli_close($connection);
+?>
+//__________________________________________________________________________________________________
+
+Put.php
+<?php
+include 'ApiConfig.php';
+
+$response = array();
+$response['affected_rows'] = "0";
+$response['error_message'] = "";
+
+$connection = @new mysqli(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_NAME);
+
+if ($connection->connect_error)
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Connection error";
+    $response['error_message'] = $connection->connect_error;
+    echo json_encode($response);
+    exit();
+}
+
+if (isset($_GET["table_name"]))
+{
+
+    $table_name = $_GET["table_name"];
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
+
+    $columns = array_keys($data);
+    $values = array_values($data);
+    $updates = "";
+    for ($x = 0;$x < sizeof($columns);$x++)
+    {
+        $key = $columns[$x];
+        $value = $values[$x];
+        $updates = $updates . $key . " = '" . $value . "', ";
+    }
+    $pri_sql = "SHOW KEYS FROM $table_name WHERE Key_name = 'PRIMARY'";
+    $pri_query = mysqli_query($connection, $pri_sql);
+    $pri_row = mysqli_fetch_assoc($pri_query);
+    $primary_key = $pri_row["Column_name"];
+    $primary_value = $data[$primary_key];
+    $query = "UPDATE $table_name SET " . rtrim($updates, ", ") . " WHERE $primary_key = $primary_value";
+    if (mysqli_query($connection, $query))
+    {
+        $response['is_successful'] = true;
+        $response['message'] = "Saved Successfully";
+        $response['affected_rows'] = $connection->affected_rows;
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = "Failed to save Please try again later";
+        $response['error_message'] = $connection->error;
+    }
+
+}
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Table name not found";
+    $response['error_message'] = "You are not passing parameter table_name";
+}
+
+echo json_encode($response);
+
 mysqli_close($connection);
 
 ?>
+//__________________________________________________________________________________________________
 
-************************************************************************************************************************************
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------
+Read.php
+<?php
+include 'ApiConfig.php';
+
+$response = array();
+$response['json_data'] = "";
+$response['error_message'] = "";
+
+$connection = @new mysqli(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_NAME);
+
+if ($connection->connect_error)
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Connection error";
+    $response['error_message'] = $connection->connect_error;
+    echo json_encode($response);
+    exit();
+}
+
+if (isset($_POST["table_name"]))
+{
+    $table_name = $_POST["table_name"];
+     $pri_sql = "SHOW KEYS FROM $table_name WHERE Key_name = 'PRIMARY'";
+     $pri_query = mysqli_query($connection, $pri_sql);
+     $pri_row = mysqli_fetch_assoc($pri_query);
+     $primary_key = $pri_row["Column_name"];
+     $primary_value = $_POST["primary_key_value"];
+     $sql = "SELECT * FROM $table_name WHERE $primary_key = $primary_value LIMIT 1";
+
+     $query = mysqli_query($connection, $sql);
+    if ($query)
+    {
+        $row = mysqli_fetch_assoc($query);
+        $response['is_successful'] = true;
+        $response['message'] = "Record found";
+        $response['json_data'] = json_encode($row);
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = "No record found";
+        $response['error_message'] = $connection->error;
+    }
+}
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Table name not found";
+    $response['error_message'] = "You are not passing parameter table_name";
+}
+
+echo json_encode($response);
+
+mysqli_close($connection);
+?>
+//__________________________________________________________________________________________________
+
+ReadAll.php
+<?php
+include 'ApiConfig.php';
+
+$response = array();
+$response['json_data'] = "";
+$response['error_message'] = "";
+
+$connection = @new mysqli(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_NAME);
+
+if ($connection->connect_error)
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Connection error";
+    $response['error_message'] = $connection->connect_error;
+    echo json_encode($response);
+    exit();
+}
+
+if (isset($_POST["table_name"]))
+{
+    $table_name = $_POST["table_name"];
+     $sql = "SELECT * FROM $table_name";
+
+     $query = mysqli_query($connection, $sql);
+    if ($query)
+    {
+        $result1 = array();
+        mysqli_data_seek($query, 0);
+        while ($row = mysqli_fetch_assoc($query))
+        {
+            $result1[] = $row;
+        }
+        $response['is_successful'] = true;
+        $response['message'] = "Records found";
+        $response['json_data'] = json_encode($result1);
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = "No record found";
+        $response['error_message'] = $connection->error;
+    }
+}
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Table name not found";
+    $response['error_message'] = "You are not passing parameter table_name";
+}
+
+echo json_encode($response);
+
+mysqli_close($connection);
+?>
+//__________________________________________________________________________________________________
+
+Remove.php
+<?php
+include 'ApiConfig.php';
+
+$response = array();
+$response['affected_rows'] = "0";
+$response['error_message'] = "";
+
+$connection = @new mysqli(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_NAME);
+
+if ($connection->connect_error)
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Connection error";
+    $response['error_message'] = $connection->connect_error;
+    echo json_encode($response);
+    exit();
+}
+
+if (isset($_POST["table_name"]))
+{
+    $table_name = $_POST["table_name"];
+    $pri_sql = "SHOW KEYS FROM $table_name WHERE Key_name = 'PRIMARY'";
+    $pri_query = mysqli_query($connection, $pri_sql);
+    $pri_row = mysqli_fetch_assoc($pri_query);
+    $primary_key = $pri_row["Column_name"];
+    $primary_value = $_POST["primary_key_value"];
+    $query = "DELETE FROM $table_name WHERE $primary_key = $primary_value";
+    if (mysqli_query($connection, $query))
+    {
+        $response['is_successful'] = true;
+        $response['message'] = "Deleted Successfully";
+        $response['affected_rows'] = $connection->affected_rows;
+    }
+    else
+    {
+        $response['is_successful'] = false;
+        $response['message'] = "Failed to delete Please try again later";
+        $response['error_message'] = $connection->error;
+    }
+
+}
+else
+{
+    $response['is_successful'] = false;
+    $response['message'] = "Table name not found";
+    $response['error_message'] = "You are not passing parameter table_name";
+}
+
+echo json_encode($response);
+
+mysqli_close($connection);
+
+?>
+//__________________________________________________________________________________________________
+
+
+
+
+
+
+
+
