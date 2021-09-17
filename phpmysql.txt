@@ -5,7 +5,7 @@ echo 'success';
 define('HOST', 'localhost'); //host
 define('USER', 'root'); //username
 define('PASS', ''); //password
-define('DB', 'sl37'); //Database name
+define('DB', ''); //Database name
 $con = mysqli_connect(HOST, USER, PASS, DB) or die('Unable to Connect');
 //----------------------------------------------------------------------------------------------------
 //TODO Close database connection
